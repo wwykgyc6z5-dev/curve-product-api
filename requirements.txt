@@ -1,0 +1,8 @@
+# 앱을 실행하는 데 필요한 라이브러리 목록 (이름==버전)
+# `pip install -r requirements.txt`로 한 번에 설치됩니다.
+# 버전을 고정해 두면 누가 언제 설치해도 똑같은 버전이 깔립니다.
+
+# 웹 API를 만드는 도구
+fastapi==0.143.0
+# FastAPI 앱을 실제로 돌려 주는 서버
+uvicorn[standard]==0.53.0
