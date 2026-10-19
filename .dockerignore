@@ -1,0 +1,13 @@
+# Docker 이미지에 넣지 않을 파일 목록
+
+# Git 기록
+.git
+# 호스트 가상환경
+.venv
+# 임시 파일
+__pycache__
+.pytest_cache
+# 테스트·문서
+tests
+docs
+*.md

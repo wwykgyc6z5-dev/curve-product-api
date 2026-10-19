@@ -60,6 +60,8 @@ tests/test_products.py   단위 테스트
 requirements.txt         앱 실행에 필요한 라이브러리
 requirements-dev.txt     테스트까지 할 때 필요한 라이브러리
 .github/                 PR 템플릿
+Dockerfile               컨테이너 이미지 정의
+compose.yaml             Docker Compose 실행 설정
 ```
 
 ## 작업 규칙 (GitHub Flow)
@@ -69,3 +71,14 @@ requirements-dev.txt     테스트까지 할 때 필요한 라이브러리
 - 커밋 메시지 앞에 이슈 키를 붙입니다. (예: `MT-12 재고 음수 검증 추가`)
 - `main`에는 직접 푸시하지 않고 PR로만 병합합니다.
 - PR을 열면 `.github/pull_request_template.md` 양식이 자동으로 채워집니다.
+
+## Docker로 실행하기
+
+```bash
+docker compose up -d --build       # 빌드 후 백그라운드 실행
+curl http://localhost:8000/health  # {"status":"ok"}
+docker compose down                # 종료
+```
+
+`python:3.13-slim` 바탕을 써서 이미지 크기를 1.68GB → 272MB로 줄였고,
+컨테이너는 root가 아닌 `appuser` 계정으로 실행되며 `/health`로 상태 검사를 합니다.
