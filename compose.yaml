@@ -1,0 +1,13 @@
+
+services:
+    # 서비스(api) 실행
+  api:
+    # 폴더(.)의 Dockerfile로 이미지를 만듦
+    build: .
+    # 이름 지정
+    image: product-api:local
+    # 연결할 포트 지정
+    ports:
+      - "8000:8000"
+    # 앱이 죽으면 자동으로 다시 켬 (직접 끈 경우는 제외)
+    restart: unless-stopped
