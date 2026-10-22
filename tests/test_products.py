@@ -132,7 +132,3 @@ def test_delete_product():
 def test_delete_missing_product_returns_404():
     # 존재하지 않는 상품 삭제시 반환
     assert client.delete("/products/999").status_code == 404
-
-def test_일부러_실패():
-    # CI가 실패를 잡아내는지 확인용 (곧 되돌릴 예정)
-    assert 1 == 2
