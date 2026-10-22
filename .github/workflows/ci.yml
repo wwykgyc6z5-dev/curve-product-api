@@ -1,0 +1,48 @@
+# =====================================================================
+# CI(지속적 통합) 설정 파일
+# PR을 올리거나 main에 코드가 합쳐질 때마다 GitHub가 자동으로
+# "빌드 → 테스트"를 실행해 줍니다.
+# =====================================================================
+
+name: CI
+
+# --- 언제 실행할까? ---------------------------------------------------
+on:
+  # main으로 가는 PR이 열리거나, PR 새 커밋이 올라올 때
+  pull_request:
+    branches: [main]
+  # main에 코드가 합쳐졌을 때 합친 결과도 한 번 더 확인
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    # 화면에 보일 작업 이름
+    name: 빌드 및 단위 테스트
+    runs-on: ubuntu-latest
+
+    # 순차 실행
+    steps:
+      # 1) 저장소 코드 내려받기
+      - name: 코드 내려받기
+        uses: actions/checkout@v4
+
+      # 2) Python 3.13 설치
+      #    cache: pip → 다운로드 받은 라이브러리 캐싱
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      # 3) 필요 라이브러리 설치
+      - name: 라이브러리 설치
+        run: pip install -r requirements-dev.txt
+
+      # 4) 빌드: 코드에 문법 오류가 없는지 확인
+      - name: 빌드 (문법 검사)
+        run: python -m compileall -q app
+
+      # 5) 단위 테스트 실행
+      - name: 단위 테스트
+        run: pytest -v
