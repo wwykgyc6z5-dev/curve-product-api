@@ -26,6 +26,8 @@ jobs:
       # 1) 저장소 코드 내려받기
       - name: 코드 내려받기
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # 2) Python 3.13 설치
       #    cache: pip → 다운로드 받은 라이브러리 캐싱
@@ -45,4 +47,10 @@ jobs:
 
       # 5) 단위 테스트 실행
       - name: 단위 테스트
-        run: pytest -v
+        run: pytest -v --cov=app --cov-report=xml
+
+      # 6) 품질 분석: SonarCloud에 코드를 보내 버그·보안 문제·중복 코드를 검사
+      - name: 품질 분석 (SonarCloud)
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
