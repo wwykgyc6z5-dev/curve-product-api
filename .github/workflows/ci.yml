@@ -39,7 +39,7 @@ jobs:
 
       # 3) 필요 라이브러리 설치
       - name: 라이브러리 설치
-        run: pip install --require-hashes --only-binary :all: -r requirements-dev.lock
+        run: "pip install --require-hashes --only-binary :all: -r requirements-dev.lock"
 
       # 4) 빌드: 코드에 문법 오류가 없는지 확인
       - name: 빌드 (문법 검사)
