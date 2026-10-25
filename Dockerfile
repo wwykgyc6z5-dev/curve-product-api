@@ -9,7 +9,8 @@ RUN useradd --create-home appuser
 
 # 4) 필요한 라이브러리 복사하고 설치
 COPY requirements.lock .
-RUN pip install --no-cache-dir --require-hashes --only-binary :all: -r requirements.lock
+RUN pip install --no-cache-dir --require-hashes --only-binary :all: -r requirements.lock \
+    && pip uninstall -y pip
 
 # 5) app 폴더 복사
 COPY app ./app
