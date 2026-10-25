@@ -54,3 +54,33 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703 # v5.3.2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+
+# image 작업: Docker 이미지 만들기 + 보안 검사
+  image:
+    name: 이미지 빌드 및 취약점 검사
+    # test 작업이 성공해야만 시작
+    needs: test
+    runs-on: ubuntu-latest
+ 
+    steps:
+      # 1) 저장소 코드 내려받기
+      - name: 코드 내려받기
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+ 
+      # 2) Dockerfile로 이미지 만들기
+      - name: Docker 이미지 빌드
+        run: docker build -t curve-product-api:${{ github.sha }} .
+ 
+      # 3) Trivy로 이미지 안의 알려진 CVE 검사
+      #    severity: 심각(CRITICAL)·높음(HIGH) 등급만 확인
+      #    ignore-unfixed: 아직 패치가 없는 것은 제외
+      #    exit-code "1": 위 조건에 걸리는 게 하나라도 있으면 머지 차단
+      - name: 취약점 검사 (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: curve-product-api:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+ 
