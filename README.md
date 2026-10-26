@@ -82,3 +82,21 @@ docker compose down                # 종료
 
 `python:3.13-slim` 바탕을 써서 이미지 크기를 1.68GB → 272MB로 줄였고,
 컨테이너는 root가 아닌 `appuser` 계정으로 실행되며 `/health`로 상태 검사를 합니다.
+
+## 시크릿 관리
+
+토큰이나 비밀번호 같은 비밀 값은 GitHub Secrets에 저장하고, 워크플로에서는 이름으로만 불러 사용합니다.
+
+| 이름 | 용도 | 저장 위치 |
+|---|---|---|
+| SONAR_TOKEN | SonarCloud에 분석 결과를 보낼 때 쓰는 토큰 | Settings → Secrets and variables → Actions |
+
+
+```yaml
+env:
+  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+```
+
+- 로그에 시크릿 값이 찍히면 GitHub가 자동으로 `***`로 마스킹합니다.
+- 토큰이 유출되면 SonarCloud에서 바로 폐기하고, 새 토큰을 만들어 Secrets 값을 바꿉니다.
+- 로컬에서 `.env` 파일을 쓰게 되면 `.gitignore`에 넣어 커밋하지 않습니다.
