@@ -56,31 +56,55 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
 
-# image 작업: Docker 이미지 만들기 + 보안 검사
+  # image 작업: Docker 이미지 만들기 + 보안 검사 + 저장소에 올리기
   image:
     name: 이미지 빌드 및 취약점 검사
-    # test 작업이 성공해야만 시작
+    # test 실패한 코드는 이미지로 만들지 않음
     needs: test
     runs-on: ubuntu-latest
- 
+
+    # 작업에 줄 권한: 코드 읽기 + 이미지 저장소(GHCR)에 올리기
+    permissions:
+      contents: read
+      packages: write
+
+    # 이미지 이름
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+
     steps:
       # 1) 저장소 코드 내려받기
       - name: 코드 내려받기
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
- 
+
       # 2) Dockerfile로 이미지 만들기
       - name: Docker 이미지 빌드
-        run: docker build -t curve-product-api:${{ github.sha }} .
- 
+        run: docker build -t $IMAGE:${{ github.sha }} .
+
       # 3) Trivy로 이미지 안의 알려진 CVE 검사
-      #    severity: 심각(CRITICAL)·높음(HIGH) 등급만 확인
-      #    ignore-unfixed: 아직 패치가 없는 것은 제외
-      #    exit-code "1": 위 조건에 걸리는 게 하나라도 있으면 머지 차단
+      #   하나라도 발생 시 실패 → 아래 단계도 실행 안 됨
       - name: 취약점 검사 (Trivy)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: curve-product-api:${{ github.sha }}
+          image-ref: ${{ env.IMAGE }}:${{ github.sha }}
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
- 
+
+      # 4) GHCR 로그인 (main에 머지됐을 때만)
+      #    GITHUB_TOKEN → GitHub가 작업마다 자동으로 만들어 주는 임시 열쇠
+      - name: GHCR 로그인
+        if: github.event_name == 'push'
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+
+      # 5) 이미지 올리기 (main에 머지됐을 때만)
+      #    태그 2개: 커밋 SHA
+      - name: 이미지 올리기 (GHCR)
+        if: github.event_name == 'push'
+        run: |
+          docker tag $IMAGE:${{ github.sha }} $IMAGE:latest
+          docker push $IMAGE:${{ github.sha }}
+          docker push $IMAGE:latest
