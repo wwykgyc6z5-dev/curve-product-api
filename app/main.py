@@ -1,7 +1,7 @@
 # =====================================================================
 # 상품 API (Product API)
 
-
+import os
 
 from fastapi import FastAPI, HTTPException, Response, status
 
@@ -57,6 +57,17 @@ def get_or_404(product_id: int) -> Product:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+# 현재 환경 및 버전 확인용
+# 값은 서버에서 컨테이너를 켤 때 환경 변수로 설정 (없으면 기본값)
+@app.get("/info")
+def info() -> dict[str, str]:
+    return {
+        "env": os.getenv("APP_ENV", "local"),        # local / dev / prod
+        "version": os.getenv("APP_VERSION", "dev"),  # 이미지 태그 (커밋 SHA)
+        "color": os.getenv("APP_COLOR", "none"),     # 블루그린 중 어느 쪽인지
+    }
 
 
 # 전체 상품 목록 조회
