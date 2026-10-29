@@ -35,6 +35,25 @@ def test_health():
     assert res.json() == {"status": "ok"}
 
 
+# --- 환경 정보 ---------------------------------------------------------
+def test_info_default(monkeypatch):
+    # 환경 변수가 없으면 기본값이 나와야 한다
+    for name in ("APP_ENV", "APP_VERSION", "APP_COLOR"):
+        monkeypatch.delenv(name, raising=False)
+    res = client.get("/info")
+    assert res.status_code == 200
+    assert res.json() == {"env": "local", "version": "dev", "color": "none"}
+
+
+def test_info_from_env(monkeypatch):
+    # 서버에서 넣어 준 환경 변수 값이 그대로 나와야 한다
+    monkeypatch.setenv("APP_ENV", "prod")
+    monkeypatch.setenv("APP_VERSION", "abc123")
+    monkeypatch.setenv("APP_COLOR", "blue")
+    res = client.get("/info")
+    assert res.json() == {"env": "prod", "version": "abc123", "color": "blue"}
+
+
 # --- 목록 조회 ---------------------------------------------------------
 
 def test_list_empty():
