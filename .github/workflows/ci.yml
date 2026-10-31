@@ -108,3 +108,58 @@ jobs:
           docker tag $IMAGE:${{ github.sha }} $IMAGE:latest
           docker push $IMAGE:${{ github.sha }}
           docker push $IMAGE:latest
+
+
+  # deploy-dev 작업: EC2에 새 이미지 자동 배포
+  deploy-dev:
+    name: 개발 서버 배포
+    # 이미지가 GHCR에 올라간 다음에만 배포
+    needs: image
+    # main에 머지되었을 때만 (PR 단계에서는 배포 안 함)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # GitHub Environments의 dev 시크릿을 사용
+    environment: dev
+
+    steps:
+      # 1) SSH 키 준비: 시크릿 → 임시 파일
+      - name: SSH 키 준비
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy.pem
+          chmod 600 ~/.ssh/deploy.pem
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      # 2) 서버에 접속해서 새 이미지로 교체
+      - name: 서버에 새 이미지 실행
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          TAG: ${{ github.sha }}
+        run: |
+          ssh -i ~/.ssh/deploy.pem "$EC2_USER@$EC2_HOST" "
+            docker pull $IMAGE &&
+            (docker rm -f api-dev || true) &&
+            docker run -d --name api-dev --restart unless-stopped \
+              -p 8080:8000 \
+              -e APP_ENV=dev -e APP_VERSION=$TAG \
+              $IMAGE
+          "
+
+      # 3) 헬스 체크: 2초 간격으로 최대 10번 확인 이후 응답 없을 시 실패
+      - name: 배포 확인 (헬스 체크)
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy.pem "$EC2_USER@$EC2_HOST" '
+            for i in $(seq 1 10); do
+              curl -fsS http://localhost:8080/health && exit 0
+              sleep 2
+            done
+            echo "헬스 체크 실패"; exit 1
+          '
