@@ -163,3 +163,58 @@ jobs:
             done
             echo "헬스 체크 실패"; exit 1
           '
+
+
+  # deploy-prod 작업: 리뷰어 승인 후 운영 서버 배포
+  deploy-prod:
+    name: 운영 서버 배포
+    # 개발 서버 배포가 성공해야 운영으로 넘어감
+    needs: deploy-dev
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # production 환경: 리뷰어가 승인 버튼을 눌러야 시작
+    environment: production
+
+    steps:
+      # 1) SSH 키 준비 (production 시크릿)
+      - name: SSH 키 준비
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy.pem
+          chmod 600 ~/.ssh/deploy.pem
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      # 2) 운영 컨테이너 교체 (80번 포트, APP_ENV=prod)
+      #    dev에서 검증한 것과 동일한 이미지(같은 SHA)를 사용
+      - name: 운영 서버에 새 이미지 실행
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          TAG: ${{ github.sha }}
+        run: |
+          ssh -i ~/.ssh/deploy.pem "$EC2_USER@$EC2_HOST" "
+            docker pull $IMAGE &&
+            (docker rm -f api-prod || true) &&
+            docker run -d --name api-prod --restart unless-stopped \
+              -p 80:8000 \
+              -e APP_ENV=prod -e APP_VERSION=$TAG \
+              $IMAGE
+          "
+
+      # 3) 헬스 체크: 2초 간격 최대 10번, 끝내 안 뜨면 실패
+      - name: 배포 확인 (헬스 체크)
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy.pem "$EC2_USER@$EC2_HOST" '
+            for i in $(seq 1 10); do
+              curl -fsS http://localhost:80/health && exit 0
+              sleep 2
+            done
+            echo "헬스 체크 실패"; exit 1
+          '
