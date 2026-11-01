@@ -51,7 +51,7 @@ jobs:
 
       # 6) 품질 분석: SonarCloud에 코드를 보내 버그·보안 문제·중복 코드를 검사
       - name: 품질 분석 (SonarCloud)
-        uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703 # v5.3.2
+        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
