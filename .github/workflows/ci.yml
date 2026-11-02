@@ -165,18 +165,22 @@ jobs:
           '
 
 
-  # deploy-prod 작업: 리뷰어 승인 후 운영 서버 배포
+    # deploy-prod 작업: 리뷰어 승인 이후 운영 서버 Blue-Green 배포
   deploy-prod:
     name: 운영 서버 배포
     # 개발 서버 배포가 성공해야 운영으로 넘어감
     needs: deploy-dev
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    # production 환경: 리뷰어가 승인 버튼을 눌러야 시작
+    # production 환경: 리뷰어가 승인 버튼을 눌러야 시작됨
     environment: production
 
     steps:
-      # 1) SSH 키 준비 (production 시크릿)
+      # 1) deploy/ 폴더의 스크립트를 쓰기 위한 저장소 코드 내려받기
+      - name: 코드 내려받기
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # 2) SSH 키 준비 (production 시크릿)
       - name: SSH 키 준비
         env:
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
@@ -187,34 +191,25 @@ jobs:
           chmod 600 ~/.ssh/deploy.pem
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
 
-      # 2) 운영 컨테이너 교체 (80번 포트, APP_ENV=prod)
-      #    dev에서 검증한 것과 동일한 이미지(같은 SHA)를 사용
-      - name: 운영 서버에 새 이미지 실행
+      # 3) 배포 스크립트를 서버로 복사
+      - name: 배포 스크립트 복사
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: scp -i ~/.ssh/deploy.pem deploy/blue-green.sh deploy/rollback.sh "$EC2_USER@$EC2_HOST:~/"
+
+      # 4) Blue-Green 배포: 쉬고 있는 색에 새 버전 → 헬스 체크 → nginx 전환
+      #    헬스 체크 실패 시 전환하지 않고 기존 버전 계속 운영
+      - name: Blue-Green 배포
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
           IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
-          TAG: ${{ github.sha }}
-        run: |
-          ssh -i ~/.ssh/deploy.pem "$EC2_USER@$EC2_HOST" "
-            docker pull $IMAGE &&
-            (docker rm -f api-prod || true) &&
-            docker run -d --name api-prod --restart unless-stopped \
-              -p 80:8000 \
-              -e APP_ENV=prod -e APP_VERSION=$TAG \
-              $IMAGE
-          "
+        run: ssh -i ~/.ssh/deploy.pem "$EC2_USER@$EC2_HOST" "bash ~/blue-green.sh $IMAGE"
 
-      # 3) 헬스 체크: 2초 간격 최대 10번, 끝내 안 뜨면 실패
-      - name: 배포 확인 (헬스 체크)
+      # 5) nginx(80번)를 거쳐서도 정상인지 최종 확인
+      - name: 배포 확인 (80번 헬스 체크)
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
-        run: |
-          ssh -i ~/.ssh/deploy.pem "$EC2_USER@$EC2_HOST" '
-            for i in $(seq 1 10); do
-              curl -fsS http://localhost:80/health && exit 0
-              sleep 2
-            done
-            echo "헬스 체크 실패"; exit 1
-          '
+        run: ssh -i ~/.ssh/deploy.pem "$EC2_USER@$EC2_HOST" "curl -fsS http://localhost/health && curl -fsS http://localhost/info"
