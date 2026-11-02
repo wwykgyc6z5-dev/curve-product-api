@@ -38,7 +38,7 @@ for i in $(seq 1 15); do
 done
 
 # 실패하면 전환하지 않음(무중단)
-if [ "$OK" != 1 ]; then
+if [[ "$OK" != 1 ]]; then
   echo "헬스 체크 실패 → 전환하지 않고 기존 $CURRENT 유지"
   docker rm -f "api-$NEW"
   exit 1
