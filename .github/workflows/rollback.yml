@@ -1,0 +1,52 @@
+# =====================================================================
+# 롤백 워크플로
+# nginx를 직전 색으로 되돌려서 바로 이전 버전으로 복구합니다.
+# 운영에 손대는 작업이라 production 환경을 똑같이 거칩니다.
+# =====================================================================
+
+name: Rollback
+
+on:
+  workflow_dispatch:
+
+# 코드 읽기 권한 부여
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    name: 운영 롤백 (직전 색으로 전환)
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      # 1) deploy/rollback.sh사용을 위해 코드 내려받기
+      - name: 코드 내려받기
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # 2) SSH 키 준비 (production 시크릿 사용)
+      - name: SSH 키 준비
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy.pem
+          chmod 600 ~/.ssh/deploy.pem
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      # 3) 롤백 스크립트를 서버로 복사해서 실행
+      - name: 롤백 실행
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          scp -i ~/.ssh/deploy.pem deploy/rollback.sh "$EC2_USER@$EC2_HOST:~/"
+          ssh -i ~/.ssh/deploy.pem "$EC2_USER@$EC2_HOST" "bash ~/rollback.sh"
+
+      # 4) 롤백 후 80번으로 정상 응답하는지 확인
+      - name: 롤백 확인
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: ssh -i ~/.ssh/deploy.pem "$EC2_USER@$EC2_HOST" "curl -fsS http://localhost/health && curl -fsS http://localhost/info"
